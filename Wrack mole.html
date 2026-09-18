@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>打地鼠 Fitts's Law 實驗</title>
+<style>
+  :root{
+    --dirt:#8a5a3b; --dirt-dark:#6e4529; --grass:#5b8c3a;
+    --ink:#2b2117; --panel:#fdf6e3; --accent:#c0392b; --good:#2e7d32;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; min-height:100vh; background:var(--grass);
+    font-family:"Microsoft JhengHei","PingFang TC",sans-serif;
+    color:var(--ink); display:flex; flex-direction:column; align-items:center;
+    padding:20px;
+  }
+  h1{margin:6px 0 2px; font-size:1.4rem}
+  p.sub{margin:0 0 14px; font-size:.85rem; color:#eaf4e0}
+
+  .panel{
+    background:var(--panel); border-radius:10px; padding:12px 18px;
+    box-shadow:0 4px 14px rgba(0,0,0,.25); margin-bottom:14px;
+    display:flex; gap:18px; flex-wrap:wrap; align-items:center; font-size:.9rem;
+  }
+  .panel b{color:var(--accent)}
+
+  #stage{
+    position:relative; width:640px; max-width:94vw; height:420px;
+    background:
+      repeating-linear-gradient(0deg, var(--dirt) 0 40px, var(--dirt-dark) 40px 42px),
+      repeating-linear-gradient(90deg, transparent 0 40px, rgba(0,0,0,.05) 40px 42px);
+    border-radius:14px; border:6px solid #3f2a1a; overflow:hidden;
+    touch-action:none; cursor:crosshair;
+  }
+  #stage.disabled{cursor:not-allowed}
+
+  .mole{
+    position:absolute; border-radius:50%; transform:translate(-50%,-50%);
+    background:radial-gradient(circle at 35% 30%, #a9764a, #5c3a20 70%);
+    border:3px solid #3a230f; box-shadow:0 3px 6px rgba(0,0,0,.4) inset, 0 3px 4px rgba(0,0,0,.35);
+    display:flex; align-items:center; justify-content:center; font-size:1.4rem;
+    animation:pop .12s ease-out;
+    user-select:none;
+  }
+  @keyframes pop{ from{transform:translate(-50%,-50%) scale(.3)} to{transform:translate(-50%,-50%) scale(1)} }
+
+  .startpoint{
+    position:absolute; width:14px; height:14px; border-radius:50%;
+    background:#fff; border:2px solid var(--accent); transform:translate(-50%,-50%);
+    box-shadow:0 0 0 4px rgba(255,255,255,.25);
+  }
+
+  .flash{
+    position:absolute; width:10px; height:10px; border-radius:50%;
+    transform:translate(-50%,-50%); pointer-events:none;
+    animation:fade .5s ease-out forwards;
+  }
+  .flash.hit{background:rgba(46,125,50,.7)}
+  .flash.miss{background:rgba(192,57,43,.7)}
+  @keyframes fade{ to{ transform:translate(-50%,-50%) scale(4); opacity:0 } }
+
+  .overlay{
+    position:absolute; inset:0; background:rgba(20,14,8,.82); color:#fdf6e3;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; gap:14px; padding:20px;
+  }
+  .overlay h2{margin:0; font-size:1.3rem}
+  .overlay p{margin:0; font-size:.85rem; max-width:420px; line-height:1.6; color:#e7dcc6}
+
+  button{
+    font-family:inherit; font-size:.95rem; font-weight:700; padding:10px 22px;
+    border-radius:999px; border:none; cursor:pointer; background:var(--accent);
+    color:#fff; letter-spacing:.05em;
+  }
+  button:hover{filter:brightness(1.08)}
+  button:disabled{opacity:.4; cursor:not-allowed}
+  button.secondary{background:#3f2a1a}
+
+  #controls{display:flex; gap:10px; margin-top:14px; flex-wrap:wrap; justify-content:center}
+
+  table{border-collapse:collapse; font-size:.82rem; margin-top:6px; background:#fff}
+  table th, table td{border:1px solid #ddd; padding:4px 10px; text-align:right}
+  table th{background:#f0e7d0}
+  #resultsWrap{max-height:220px; overflow:auto; border-radius:8px; margin-top:10px; display:none}
+</style>
+</head>
+<body>
+
+<h1>🔨 打地鼠：Fitts's Law 實驗</h1>
+<p class="sub">系統性改變「目標距離 (A)」與「目標寬度 (W)」，量測移動時間 (Movement Time)</p>
+
+<div class="panel">
+  <span>回合：<b id="trialNum">0</b> / <span id="trialTotal">0</span></span>
+  <span>目前 A：<b id="curA">–</b> px</span>
+  <span>目前 W：<b id="curW">–</b> px</span>
+  <span>上一回合 MT：<b id="lastMT">–</b> ms</span>
+</div>
+
+<div id="stage">
+  <div id="overlay" class="overlay">
+    <h2>準備開始</h2>
+    <p>
+      每一回合畫面會出現一隻地鼠，位置與上一次點擊位置距離為 <b>A</b>（目標距離），
+      地鼠大小為 <b>W</b>（目標寬度）。請盡快點擊地鼠。
+      系統會自動輪替不同的 A / W 組合，並記錄每次點擊的移動時間 (MT)。
+    </p>
+    <button id="startBtn">開始實驗</button>
+  </div>
+</div>
+
+<div id="controls">
+  <button id="downloadBtn" class="secondary" disabled>下載 CSV（A, W, MT）</button>
+  <button id="resetBtn" class="secondary">重新開始</button>
+</div>
+
+<div id="resultsWrap">
+  <table id="resultsTable">
+    <thead>
+      <tr><th>#</th><th>A (px)</th><th>W (px)</th><th>MT (ms)</th><th>Hit</th></tr>
+    </thead>
+    <tbody id="resultsBody"></tbody>
+  </table>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ===== 1. 系統性變化的 A（目標距離）與 W（目標寬度）設定 =====
+  const DISTANCES = [120, 220, 320];   // A 的可能值 (px)
+  const WIDTHS    = [30, 50, 70];      // W 的可能值 (px)
+  const REPEATS_PER_CONDITION = 3;     // 每種 A×W 組合重複次數
+
+  const stage       = document.getElementById('stage');
+  const overlay      = document.getElementById('overlay');
+  const startBtn      = document.getElementById('startBtn');
+  const downloadBtn   = document.getElementById('downloadBtn');
+  const resetBtn       = document.getElementById('resetBtn');
+  const trialNumEl    = document.getElementById('trialNum');
+  const trialTotalEl  = document.getElementById('trialTotal');
+  const curAEl         = document.getElementById('curA');
+  const curWEl          = document.getElementById('curW');
+  const lastMTEl       = document.getElementById('lastMT');
+  const resultsWrap    = document.getElementById('resultsWrap');
+  const resultsBody    = document.getElementById('resultsBody');
+
+  let trials = [];        // 完整的試驗序列 [{A,W}, ...]
+  let trialIndex = -1;
+  let currentPos = null;  // 目前（上一次點擊）的位置 {x,y}
+  let targetPos = null;   // 本回合地鼠位置
+  let targetW = 0;
+  let targetA = 0;
+  let trialStartTime = 0; // 本回合起始時間 (performance.now)
+  let moleEl = null;
+  let running = false;
+  let log = [];            // 儲存結果 {trial, A, W, MT, hit}
+
+  const MARGIN = 40; // 讓地鼠不要貼邊
+
+  // ===== 2. 建立試驗序列：所有 A×W 組合，重複數次，並隨機排序 =====
+  function buildTrials(){
+    const list = [];
+    for (const A of DISTANCES){
+      for (const W of WIDTHS){
+        for (let r = 0; r < REPEATS_PER_CONDITION; r++){
+          list.push({ A, W });
+        }
+      }
+    }
+    // Fisher-Yates 洗牌，避免同一組合連續出現造成學習效應偏差
+    for (let i = list.length - 1; i > 0; i--){
+      const j = Math.floor(Math.random() * (i + 1));
+      [list[i], list[j]] = [list[j], list[i]];
+    }
+    return list;
+  }
+
+  function stageSize(){
+    const rect = stage.getBoundingClientRect();
+    return { w: rect.width, h: rect.height };
+  }
+
+  // 依據上一個位置 + 距離 A，找一個角度使新位置落在畫布範圍內
+  function pickTargetPosition(from, A){
+    const { w, h } = stageSize();
+    let pos, tries = 0;
+    do {
+      const angle = Math.random() * Math.PI * 2;
+      pos = {
+        x: from.x + Math.cos(angle) * A,
+        y: from.y + Math.sin(angle) * A
+      };
+      tries++;
+    } while (
+      (pos.x < MARGIN || pos.x > w - MARGIN || pos.y < MARGIN || pos.y > h - MARGIN)
+      && tries < 200
+    );
+    // 若一直找不到合法角度（極端情況），夾回邊界內
+    pos.x = Math.min(Math.max(pos.x, MARGIN), w - MARGIN);
+    pos.y = Math.min(Math.max(pos.y, MARGIN), h - MARGIN);
+    return pos;
+  }
+
+  function startExperiment(){
+    trials = buildTrials();
+    trialIndex = -1;
+    log = [];
+    resultsBody.innerHTML = '';
+    resultsWrap.style.display = 'none';
+    downloadBtn.disabled = true;
+    trialTotalEl.textContent = trials.length;
+    overlay.style.display = 'none';
+    running = true;
+
+    const { w, h } = stageSize();
+    currentPos = { x: w / 2, y: h / 2 }; // 起始點：畫面中心
+    showStartMarker();
+    nextTrial();
+  }
+
+  function showStartMarker(){
+    clearMole();
+    const marker = document.createElement('div');
+    marker.className = 'startpoint';
+    marker.style.left = currentPos.x + 'px';
+    marker.style.top  = currentPos.y + 'px';
+    marker.id = 'startMarker';
+    stage.appendChild(marker);
+    setTimeout(() => {
+      const m = document.getElementById('startMarker');
+      if (m) m.remove();
+    }, 300);
+  }
+
+  function clearMole(){
+    if (moleEl){ moleEl.remove(); moleEl = null; }
+  }
+
+  // ===== 3. 產生下一回合的地鼠（含目標距離 A 與寬度 W） =====
+  function nextTrial(){
+    trialIndex++;
+    if (trialIndex >= trials.length){
+      finishExperiment();
+      return;
+    }
+    const { A, W } = trials[trialIndex];
+    targetA = A;
+    targetW = W;
+    targetPos = pickTargetPosition(currentPos, A);
+
+    trialNumEl.textContent = trialIndex + 1;
+    curAEl.textContent = A;
+    curWEl.textContent = W;
+
+    clearMole();
+    moleEl = document.createElement('div');
+    moleEl.className = 'mole';
+    moleEl.style.width = W + 'px';
+    moleEl.style.height = W + 'px';
+    moleEl.style.left = targetPos.x + 'px';
+    moleEl.style.top  = targetPos.y + 'px';
+    moleEl.textContent = '🐹';
+    moleEl.style.fontSize = Math.max(10, W * 0.5) + 'px';
+    stage.appendChild(moleEl);
+
+    // ===== 4. 計時開始（地鼠出現的當下） =====
+    trialStartTime = performance.now();
+  }
+
+  function spawnFlash(x, y, hit){
+    const f = document.createElement('div');
+    f.className = 'flash ' + (hit ? 'hit' : 'miss');
+    f.style.left = x + 'px';
+    f.style.top = y + 'px';
+    stage.appendChild(f);
+    setTimeout(() => f.remove(), 500);
+  }
+
+  // ===== 5. 處理點擊：判定命中、記錄 A, W, MT =====
+  function handleClick(evt){
+    if (!running) return;
+    const rect = stage.getBoundingClientRect();
+    const clientX = (evt.touches ? evt.touches[0].clientX : evt.clientX);
+    const clientY = (evt.touches ? evt.touches[0].clientY : evt.clientY);
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+
+    const mt = performance.now() - trialStartTime; // Movement Time (ms)
+    const dist = Math.hypot(x - targetPos.x, y - targetPos.y);
+    const hit = dist <= targetW / 2;
+
+    spawnFlash(x, y, hit);
+
+    log.push({
+      trial: trialIndex + 1,
+      A: targetA,
+      W: targetW,
+      MT: Math.round(mt * 100) / 100,
+      hit: hit ? 1 : 0
+    });
+
+    lastMTEl.textContent = Math.round(mt);
+    appendResultRow(log[log.length - 1]);
+
+    // 下一回合以「實際點擊位置」作為新的起點（符合 Fitts 連續指向任務設計）
+    currentPos = { x, y };
+
+    // 若沒打中，也照樣往下一回合走，維持系統性試驗流程不被打亂
+    clearMole();
+    setTimeout(nextTrial, 120);
+  }
+
+  function appendResultRow(row){
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td>' + row.trial + '</td>' +
+      '<td>' + row.A + '</td>' +
+      '<td>' + row.W + '</td>' +
+      '<td>' + row.MT + '</td>' +
+      '<td>' + (row.hit ? '✔️' : '✘') + '</td>';
+    resultsBody.appendChild(tr);
+  }
+
+  function finishExperiment(){
+    running = false;
+    clearMole();
+    resultsWrap.style.display = 'block';
+    downloadBtn.disabled = log.length === 0;
+
+    overlay.style.display = 'flex';
+    overlay.innerHTML =
+      '<h2>實驗結束</h2>' +
+      '<p>共完成 ' + log.length + ' 回合。你可以在下方查看每一筆試驗紀錄，' +
+      '或點擊「下載 CSV」匯出 A（目標距離）、W（目標寬度）、MT（移動時間）資料。</p>' +
+      '<button id="restartBtn2">再玩一次</button>';
+    document.getElementById('restartBtn2').addEventListener('click', startExperiment);
+  }
+
+  // ===== 6. 匯出 CSV（欄位：trial, A, W, MT, hit） =====
+  function downloadCSV(){
+    if (log.length === 0) return;
+    const header = 'trial,A,W,MT,hit\n';
+    const rows = log.map(r => [r.trial, r.A, r.W, r.MT, r.hit].join(',')).join('\n');
+    const csv = header + rows;
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const ts = new Date().toISOString().replace(/[:.]/g, '-');
+    a.download = 'whackamole_fitts_data_' + ts + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  // ===== 事件綁定 =====
+  startBtn.addEventListener('click', startExperiment);
+  resetBtn.addEventListener('click', () => {
+    running = false;
+    clearMole();
+    resultsWrap.style.display = 'none';
+    downloadBtn.disabled = true;
+    trialNumEl.textContent = '0';
+    trialTotalEl.textContent = '0';
+    curAEl.textContent = '–';
+    curWEl.textContent = '–';
+    lastMTEl.textContent = '–';
+    overlay.style.display = 'flex';
+    overlay.innerHTML =
+      '<h2>準備開始</h2>' +
+      '<p>每一回合畫面會出現一隻地鼠，位置與上一次點擊位置距離為 <b>A</b>（目標距離），' +
+      '地鼠大小為 <b>W</b>（目標寬度）。請盡快點擊地鼠。' +
+      '系統會自動輪替不同的 A / W 組合，並記錄每次點擊的移動時間 (MT)。</p>' +
+      '<button id="startBtn2">開始實驗</button>';
+    document.getElementById('startBtn2').addEventListener('click', startExperiment);
+  });
+  downloadBtn.addEventListener('click', downloadCSV);
+
+  stage.addEventListener('click', handleClick);
+  stage.addEventListener('touchstart', function(e){ e.preventDefault(); handleClick(e); }, { passive:false });
+
+})();
+</script>
+
+</body>
+</html>
