@@ -153,15 +153,15 @@
 
 <!-- ===== 新增：散佈圖 + 迴歸分析 ===== -->
 <div id="chartWrap">
-  <h2>📈 Fitts's Law 迴歸分析</h2>
+  <h2>📈 Fitts's Law Regression Analysis</h2>
   <p class="note">
     Every point represent a trial. Axis X means Index of difficulty ID = log₂(A/W + 1)，Axis Y means movement time MT。
   </p>
   <canvas id="chartCanvas"></canvas>
   <div id="fitText"></div>
   <div class="chartTools">
-    <label><input type="checkbox" id="onlyHits" checked> 迴歸只計入命中的回合</label>
-    <button id="savePngBtn" class="secondary">下載圖表 PNG</button>
+    <label><input type="checkbox" id="onlyHits" checked> Only trials which moles been hit will be count in Regression</label>
+    <button id="savePngBtn" class="secondary">Download the plot PNG</button>
   </div>
 </div>
 
@@ -392,10 +392,10 @@
 
     overlay.style.display = 'flex';
     overlay.innerHTML =
-      '<h2>實驗結束</h2>' +
-      '<p>共完成 ' + log.length + ' 回合。下方可以查看 Fitts\'s Law 散佈圖與迴歸結果、' +
-      '每一筆試驗紀錄，或點擊「下載 CSV」匯出 A、W、MT 資料。</p>' +
-      '<button id="restartBtn2">再玩一次</button>';
+      '<h2>End of the experiment</h2>' +
+      '<p>You have finished ' + log.length + ' trials. You can check Fitts\'s Law scatter plot and the results of regression and' +
+      'every trial result below, or click「Download CSV」for export the data of A、W、MT.</p>' +
+      '<button id="restartBtn2">Play again</button>';
     document.getElementById('restartBtn2').addEventListener('click', startExperiment);
 
     // 新增：畫出散佈圖與迴歸線
@@ -550,11 +550,11 @@
     ctx.fillStyle = '#2b2117';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
-    ctx.fillText('難度指標 ID = log₂(A/W + 1)（bits）', pad.l + pw / 2, cssH - 8);
+    ctx.fillText('Index of difficulty ID = log₂(A/W + 1)（bits）', pad.l + pw / 2, cssH - 8);
     ctx.save();
     ctx.translate(14, pad.t + ph / 2);
     ctx.rotate(-Math.PI / 2);
-    ctx.fillText('移動時間 MT（ms）', 0, 0);
+    ctx.fillText('Movement Time MT（ms）', 0, 0);
     ctx.restore();
 
     // --- 迴歸趨勢線 ---
@@ -590,10 +590,10 @@
     const lines = ["Fitts's Law：MT = a + b · log₂(A/W + 1)"];
     if (fit){
       const sign = fit.b >= 0 ? '+' : '−';
-      lines.push('擬合：MT = ' + fmt(fit.a, 1) + ' ' + sign + ' ' + fmt(Math.abs(fit.b), 1) + ' · ID');
+      lines.push('Fitting：MT = ' + fmt(fit.a, 1) + ' ' + sign + ' ' + fmt(Math.abs(fit.b), 1) + ' · ID');
       lines.push('R² = ' + fmt(fit.r2, 3) + '　(n = ' + fit.n + ')');
     } else {
-      lines.push('資料不足，無法計算迴歸');
+      lines.push('No enough data, cannot calculate Regression');
     }
     const lh = fs * 1.55;
     let bw = 0;
@@ -630,14 +630,14 @@
       const sign = fit.b >= 0 ? '+' : '−';
       let html =
         '<b>Fitts\'s Law：</b>MT = a + b · log₂(A/W + 1)<br>' +
-        '<b>擬合結果：</b>MT = ' + fmt(fit.a, 1) + ' ' + sign + ' ' + fmt(Math.abs(fit.b), 1) + ' · ID<br>' +
+        '<b>Fitting Result：</b>MT = ' + fmt(fit.a, 1) + ' ' + sign + ' ' + fmt(Math.abs(fit.b), 1) + ' · ID<br>' +
         '<b>R²：</b>' + fmt(fit.r2, 3) + '（n = ' + fit.n + '）';
       if (fit.b > 0){
         html += '<br><b>Throughput ≈ </b>' + fmt(1000 / fit.b, 2) + ' bits/s（= 1 / b）';
       }
       fitTextEl.innerHTML = html;
     } else {
-      fitTextEl.textContent = '有效資料不足，無法計算迴歸。';
+      fitTextEl.textContent = 'No enough effective data, cannot calculate Regression。';
     }
   }
 
@@ -673,12 +673,22 @@
     lastMTEl.textContent = '–';
     overlay.style.display = 'flex';
     overlay.innerHTML =
-      '<h2>準備開始</h2>' +
-      '<p>每一回合畫面會出現一隻地鼠，位置與上一次點擊位置距離為 <b>A</b>（目標距離），' +
-      '地鼠大小為 <b>W</b>（目標寬度）。請盡快點擊地鼠。' +
-      '系統會自動輪替不同的 A / W 組合，並記錄每次點擊的移動時間 (MT)。</p>' +
-      '<button id="startBtn2">開始實驗</button>';
+      '<div id="storyBox">' +
+      '<h2>Scenario Description</h2>' +
+      '<p>As an online game designer, I want to estimate the range of difficulty level ' +
+      'which won\'t make the game too hard to play. In that case, I can develop an ' +
+      'appropriate Wrack Mole game, which controls the distance and width of moles ' +
+      'in a reasonable range.</p>' +
+      '<button id="storyNextBtn">Next</button>' +
+      '</div>' +
+      '<h2>Prepare to start the game</h2>' +
+      '<p>A mole will appear on screen for every trial，the length between old and new position is devoted as <b>A</b>（distance），' +
+      'the size of mole is devoted as <b>W</b>（width）. Hit the mole as quick as possible。' +
+      'The system will change the combination of different distances and widths, and record every movement time (MT)。</p>' +
+      '<button id="startBtn2">Game Start</button>';
     document.getElementById('startBtn2').addEventListener('click', startExperiment);
+    document.getElementById('storyNextBtn').addEventListener('click', () => {
+      document.getElementById('storyBox').style.display = 'none';
   });
   downloadBtn.addEventListener('click', downloadCSV);
 
