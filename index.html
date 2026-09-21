@@ -216,8 +216,8 @@
   }
 
   function stageSize(){
-    const rect = stage.getBoundingClientRect();
-    return { w: rect.width, h: rect.height };
+    // 用 clientWidth/clientHeight（不含 border），與絕對定位的座標系一致
+    return { w: stage.clientWidth, h: stage.clientHeight };
   }
 
   // 依據上一個位置 + 距離 A，找一個角度使新位置落在畫布範圍內
@@ -320,11 +320,14 @@
   // ===== 5. 處理點擊：判定命中、記錄 A, W, MT =====
   function handleClick(evt){
     if (!running) return;
+    // 修正：按鈕在 overlay 裡，click 會冒泡到 stage，導致「開始」那一下被當成第一回合的點擊
+    if (overlay.contains(evt.target)) return;
     const rect = stage.getBoundingClientRect();
     const clientX = (evt.touches ? evt.touches[0].clientX : evt.clientX);
     const clientY = (evt.touches ? evt.touches[0].clientY : evt.clientY);
-    const x = clientX - rect.left;
-    const y = clientY - rect.top;
+    // 修正：扣掉 stage 的 border，才會和地鼠的絕對定位座標一致
+    const x = clientX - rect.left - stage.clientLeft;
+    const y = clientY - rect.top - stage.clientTop;
 
     const mt = performance.now() - trialStartTime; // Movement Time (ms)
     const dist = Math.hypot(x - targetPos.x, y - targetPos.y);
@@ -665,7 +668,11 @@
   });
 
   stage.addEventListener('click', handleClick);
-  stage.addEventListener('touchstart', function(e){ e.preventDefault(); handleClick(e); }, { passive:false });
+  stage.addEventListener('touchstart', function(e){
+    if (overlay.contains(e.target)) return;   // 讓 overlay 上的按鈕在觸控裝置也能正常點擊
+    e.preventDefault();
+    handleClick(e);
+  }, { passive:false });
 
 })();
 </script>
