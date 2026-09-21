@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>打地鼠 Fitts's Law 實驗</title>
+<title>Wrack Mole：Fitts's Law Experiment</title>
 <style>
   :root{
     --dirt:#8a5a3b; --dirt-dark:#6e4529; --grass:#5b8c3a;
@@ -69,6 +69,13 @@
   .overlay h2{margin:0; font-size:1.3rem}
   .overlay p{margin:0; font-size:.85rem; max-width:420px; line-height:1.6; color:#e7dcc6}
 
+  #storyBox{
+    position:absolute; inset:0; z-index:2; background:#fff; color:#2b2117;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; gap:14px; padding:20px;
+  }
+  
+  #storyBox p{color:#2b2117}
   button{
     font-family:inherit; font-size:.95rem; font-weight:700; padding:10px 22px;
     border-radius:999px; border:none; cursor:pointer; background:var(--accent);
@@ -105,18 +112,25 @@
 </head>
 <body>
 
-<h1>🔨 打地鼠：Fitts's Law 實驗</h1>
-<p class="sub">系統性改變「目標距離 (A)」與「目標寬度 (W)」，量測移動時間 (Movement Time)</p>
+<h1>🔨 Wrack Mole：Fitts's Law Experiment</h1>
+<p class="sub"> Systemic Change「Distance (A)」and「Width (W)」to measure Movement Time</p>
 
 <div class="panel">
-  <span>回合：<b id="trialNum">0</b> / <span id="trialTotal">0</span></span>
-  <span>目前 A：<b id="curA">–</b> px</span>
-  <span>目前 W：<b id="curW">–</b> px</span>
-  <span>上一回合 MT：<b id="lastMT">–</b> ms</span>
+  <span>Number of Trial：<b id="trialNum">0</b> / <span id="trialTotal">0</span></span>
+  <span>Current A：<b id="curA">–</b> px</span>
+  <span>Current W：<b id="curW">–</b> px</span>
+  <span>Last Trial MT：<b id="lastMT">–</b> ms</span>
 </div>
 
 <div id="stage">
   <div id="overlay" class="overlay">
+  <div id="storyBox">
+      <h2>情境說明</h2>
+      <p>
+        在這裡寫你的情境說明……
+      </p>
+      <button id="storyNextBtn">下一步</button>
+    </div>  
     <h2>準備開始</h2>
     <p>
       每一回合畫面會出現一隻地鼠，位置與上一次點擊位置距離為 <b>A</b>（目標距離），
@@ -128,15 +142,15 @@
 </div>
 
 <div id="controls">
-  <button id="downloadBtn" class="secondary" disabled>下載 CSV（A, W, MT）</button>
-  <button id="resetBtn" class="secondary">重新開始</button>
+  <button id="downloadBtn" class="secondary" disabled>Download CSV（A, W, MT）</button>
+  <button id="resetBtn" class="secondary">Restart</button>
 </div>
 
 <!-- ===== 新增：散佈圖 + 迴歸分析 ===== -->
 <div id="chartWrap">
   <h2>📈 Fitts's Law 迴歸分析</h2>
   <p class="note">
-    每個點代表一回合。X 軸為難度指標 ID = log₂(A/W + 1)，Y 軸為移動時間 MT。
+    Every point represent a trial. Axis X means Index of difficulty ID = log₂(A/W + 1)，Axis Y means movement time MT。
   </p>
   <canvas id="chartCanvas"></canvas>
   <div id="fitText"></div>
@@ -638,6 +652,9 @@
 
   // ===== 事件綁定 =====
   startBtn.addEventListener('click', startExperiment);
+  document.getElementById('storyNextBtn').addEventListener('click', () => {
+    document.getElementById('storyBox').style.display = 'none';
+  });
   resetBtn.addEventListener('click', () => {
     running = false;
     clearMole();
