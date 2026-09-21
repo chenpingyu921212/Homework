@@ -393,7 +393,7 @@
     overlay.style.display = 'flex';
     overlay.innerHTML =
       '<h2>End of the experiment</h2>' +
-      '<p>You have finished ' + log.length + ' trials. You can check Fitts\'s Law scatter plot and the results of regression and' +
+      '<p>You have finished ' + log.length + ' trials. You can check Fitts\'s Law scatter plot and the results of regression and ' +
       'every trial result below, or click「Download CSV」for export the data of A、W、MT.</p>' +
       '<button id="restartBtn2">Play again</button>';
     document.getElementById('restartBtn2').addEventListener('click', startExperiment);
@@ -618,11 +618,11 @@
       ctx.beginPath(); ctx.arc(lx, ly, 4.5, 0, Math.PI * 2);
       ctx.fillStyle = 'rgba(192,57,43,.75)'; ctx.fill();
       ctx.fillStyle = '#2b2117'; ctx.textAlign = 'left';
-      ctx.fillText('命中', lx + 9, ly);
+      ctx.fillText('Hit', lx + 9, ly);
       ctx.beginPath(); ctx.arc(lx + 58, ly, 4.5, 0, Math.PI * 2);
       ctx.strokeStyle = '#7f8c8d'; ctx.lineWidth = 1.5; ctx.stroke();
       ctx.fillStyle = '#2b2117';
-      ctx.fillText('失誤', lx + 67, ly);
+      ctx.fillText('Miss', lx + 67, ly);
     }
 
     // --- 圖表下方的文字說明（可複製） ---
@@ -689,6 +689,7 @@
     document.getElementById('startBtn2').addEventListener('click', startExperiment);
     document.getElementById('storyNextBtn').addEventListener('click', () => {
       document.getElementById('storyBox').style.display = 'none';
+    });
   });
   downloadBtn.addEventListener('click', downloadCSV);
 
