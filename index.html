@@ -84,6 +84,23 @@
   table th, table td{border:1px solid #ddd; padding:4px 10px; text-align:right}
   table th{background:#f0e7d0}
   #resultsWrap{max-height:220px; overflow:auto; border-radius:8px; margin-top:10px; display:none}
+
+  /* ===== 新增：散佈圖區塊 ===== */
+  #chartWrap{
+    display:none; width:640px; max-width:94vw; margin-top:16px;
+    background:var(--panel); border-radius:10px; padding:14px 16px;
+    box-shadow:0 4px 14px rgba(0,0,0,.25);
+  }
+  #chartWrap h2{margin:0 0 4px; font-size:1.05rem}
+  #chartWrap .note{margin:0 0 10px; font-size:.8rem; color:#5a4a36; line-height:1.5}
+  #chartCanvas{display:block; width:100%; height:380px; background:#fff; border-radius:8px}
+  #fitText{margin-top:10px; font-size:.9rem; line-height:1.8}
+  #fitText b{color:var(--accent)}
+  .chartTools{
+    display:flex; gap:14px; align-items:center; flex-wrap:wrap;
+    margin-top:10px; font-size:.85rem;
+  }
+  .chartTools button{padding:8px 16px; font-size:.85rem}
 </style>
 </head>
 <body>
@@ -113,6 +130,20 @@
 <div id="controls">
   <button id="downloadBtn" class="secondary" disabled>下載 CSV（A, W, MT）</button>
   <button id="resetBtn" class="secondary">重新開始</button>
+</div>
+
+<!-- ===== 新增：散佈圖 + 迴歸分析 ===== -->
+<div id="chartWrap">
+  <h2>📈 Fitts's Law 迴歸分析</h2>
+  <p class="note">
+    每個點代表一回合。X 軸為難度指標 ID = log₂(A/W + 1)，Y 軸為移動時間 MT。
+  </p>
+  <canvas id="chartCanvas"></canvas>
+  <div id="fitText"></div>
+  <div class="chartTools">
+    <label><input type="checkbox" id="onlyHits" checked> 迴歸只計入命中的回合</label>
+    <button id="savePngBtn" class="secondary">下載圖表 PNG</button>
+  </div>
 </div>
 
 <div id="resultsWrap">
@@ -145,6 +176,13 @@
   const lastMTEl       = document.getElementById('lastMT');
   const resultsWrap    = document.getElementById('resultsWrap');
   const resultsBody    = document.getElementById('resultsBody');
+
+  // 新增：圖表相關元素
+  const chartWrap    = document.getElementById('chartWrap');
+  const chartCanvas  = document.getElementById('chartCanvas');
+  const fitTextEl    = document.getElementById('fitText');
+  const onlyHitsEl   = document.getElementById('onlyHits');
+  const savePngBtn   = document.getElementById('savePngBtn');
 
   let trials = [];        // 完整的試驗序列 [{A,W}, ...]
   let trialIndex = -1;
@@ -209,6 +247,7 @@
     log = [];
     resultsBody.innerHTML = '';
     resultsWrap.style.display = 'none';
+    chartWrap.style.display = 'none';          // 新增：重新開始時隱藏圖表
     downloadBtn.disabled = true;
     trialTotalEl.textContent = trials.length;
     overlay.style.display = 'none';
@@ -332,10 +371,14 @@
     overlay.style.display = 'flex';
     overlay.innerHTML =
       '<h2>實驗結束</h2>' +
-      '<p>共完成 ' + log.length + ' 回合。你可以在下方查看每一筆試驗紀錄，' +
-      '或點擊「下載 CSV」匯出 A（目標距離）、W（目標寬度）、MT（移動時間）資料。</p>' +
+      '<p>共完成 ' + log.length + ' 回合。下方可以查看 Fitts\'s Law 散佈圖與迴歸結果、' +
+      '每一筆試驗紀錄，或點擊「下載 CSV」匯出 A、W、MT 資料。</p>' +
       '<button id="restartBtn2">再玩一次</button>';
     document.getElementById('restartBtn2').addEventListener('click', startExperiment);
+
+    // 新增：畫出散佈圖與迴歸線
+    renderChart();
+    chartWrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   // ===== 6. 匯出 CSV（欄位：trial, A, W, MT, hit） =====
@@ -357,12 +400,246 @@
     URL.revokeObjectURL(url);
   }
 
+  // ==========================================================
+  // ===== 7. 新增：Fitts's Law 散佈圖 + 線性迴歸 + R² =====
+  // ==========================================================
+
+  // 難度指標 ID（Shannon 公式）：ID = log2(A/W + 1)
+  function indexOfDifficulty(A, W){
+    return Math.log2(A / W + 1);
+  }
+
+  // 最小平方法線性迴歸：y = a + b·x，並計算 R²
+  function linearRegression(pts){
+    const n = pts.length;
+    if (n < 2) return null;
+
+    let sx = 0, sy = 0;
+    for (const p of pts){ sx += p.x; sy += p.y; }
+    const mx = sx / n, my = sy / n;
+
+    let sxx = 0, sxy = 0, syy = 0;
+    for (const p of pts){
+      sxx += (p.x - mx) * (p.x - mx);
+      sxy += (p.x - mx) * (p.y - my);
+      syy += (p.y - my) * (p.y - my);
+    }
+    if (sxx === 0) return null;             // 所有 x 相同，無法迴歸
+
+    const b = sxy / sxx;                    // 斜率
+    const a = my - b * mx;                  // 截距
+
+    let ssRes = 0;
+    for (const p of pts){
+      const e = p.y - (a + b * p.x);
+      ssRes += e * e;
+    }
+    const r2 = syy === 0 ? 1 : 1 - ssRes / syy;   // R² = 1 - SSres / SStot
+    return { a, b, r2, n };
+  }
+
+  // 產生「好看」的刻度
+  function niceTicks(min, max, count){
+    const raw = (max - min) / count;
+    const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    const norm = raw / mag;
+    const step = (norm < 1.5 ? 1 : norm < 3 ? 2 : norm < 7 ? 5 : 10) * mag;
+    const start = Math.floor(min / step) * step;
+    const end   = Math.ceil(max / step) * step;
+    const ticks = [];
+    for (let v = start; v <= end + step / 2; v += step){
+      ticks.push(parseFloat(v.toPrecision(12)));
+    }
+    return ticks;
+  }
+
+  function fmt(v, d){ return v.toFixed(d); }
+
+  function renderChart(){
+    if (log.length === 0) return;
+
+    chartWrap.style.display = 'block';   // 先顯示，才量得到 canvas 的實際寬度
+    const cssW = chartCanvas.clientWidth;
+    const cssH = chartCanvas.clientHeight;
+    const dpr  = window.devicePixelRatio || 1;
+    chartCanvas.width  = Math.round(cssW * dpr);
+    chartCanvas.height = Math.round(cssH * dpr);
+
+    const ctx = chartCanvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, cssW, cssH);
+
+    // --- 資料：x = ID, y = MT ---
+    const all = log.map(r => ({
+      x: indexOfDifficulty(r.A, r.W),
+      y: r.MT,
+      hit: r.hit === 1
+    }));
+    const fitPts = onlyHitsEl.checked ? all.filter(p => p.hit) : all;
+    const fit = linearRegression(fitPts);
+
+    // --- 座標範圍 ---
+    const xs = all.map(p => p.x), ys = all.map(p => p.y);
+    const xTicks = niceTicks(Math.min(...xs) - 0.1, Math.max(...xs) + 0.1, 6);
+    const yTicks = niceTicks(0, Math.max(...ys) * 1.05, 6);
+    const xMin = xTicks[0], xMax = xTicks[xTicks.length - 1];
+    const yMin = yTicks[0], yMax = yTicks[yTicks.length - 1];
+
+    const pad = { l: 58, r: 18, t: 16, b: 48 };
+    const pw = cssW - pad.l - pad.r;
+    const ph = cssH - pad.t - pad.b;
+    const sx = x => pad.l + (x - xMin) / (xMax - xMin) * pw;
+    const sy = y => pad.t + ph - (y - yMin) / (yMax - yMin) * ph;
+
+    const small = cssW < 500;
+    const fs = small ? 11 : 13;
+    ctx.font = fs + 'px "Microsoft JhengHei","PingFang TC",sans-serif';
+
+    // --- 格線與刻度 ---
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = '#e6e0d2';
+    ctx.fillStyle = '#5a4a36';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    for (const t of yTicks){
+      const y = sy(t);
+      ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(pad.l + pw, y); ctx.stroke();
+      ctx.fillText(String(t), pad.l - 8, y);
+    }
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    for (const t of xTicks){
+      const x = sx(t);
+      ctx.beginPath(); ctx.moveTo(x, pad.t); ctx.lineTo(x, pad.t + ph); ctx.stroke();
+      ctx.fillText(String(t), x, pad.t + ph + 6);
+    }
+
+    // --- 座標軸 ---
+    ctx.strokeStyle = '#2b2117';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(pad.l, pad.t);
+    ctx.lineTo(pad.l, pad.t + ph);
+    ctx.lineTo(pad.l + pw, pad.t + ph);
+    ctx.stroke();
+
+    // --- 軸標題 ---
+    ctx.fillStyle = '#2b2117';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText('難度指標 ID = log₂(A/W + 1)（bits）', pad.l + pw / 2, cssH - 8);
+    ctx.save();
+    ctx.translate(14, pad.t + ph / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText('移動時間 MT（ms）', 0, 0);
+    ctx.restore();
+
+    // --- 迴歸趨勢線 ---
+    if (fit){
+      ctx.strokeStyle = '#1e5aa8';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(sx(xMin), sy(fit.a + fit.b * xMin));
+      ctx.lineTo(sx(xMax), sy(fit.a + fit.b * xMax));
+      ctx.stroke();
+    }
+
+    // --- 資料點：命中＝實心，失誤＝空心 ---
+    let hasMiss = false;
+    for (const p of all){
+      ctx.beginPath();
+      ctx.arc(sx(p.x), sy(p.y), 4.5, 0, Math.PI * 2);
+      if (p.hit){
+        ctx.fillStyle = 'rgba(192,57,43,.75)';
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      } else {
+        hasMiss = true;
+        ctx.strokeStyle = '#7f8c8d';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+    }
+
+    // --- 圖上標示公式與 R² ---
+    const lines = ["Fitts's Law：MT = a + b · log₂(A/W + 1)"];
+    if (fit){
+      const sign = fit.b >= 0 ? '+' : '−';
+      lines.push('擬合：MT = ' + fmt(fit.a, 1) + ' ' + sign + ' ' + fmt(Math.abs(fit.b), 1) + ' · ID');
+      lines.push('R² = ' + fmt(fit.r2, 3) + '　(n = ' + fit.n + ')');
+    } else {
+      lines.push('資料不足，無法計算迴歸');
+    }
+    const lh = fs * 1.55;
+    let bw = 0;
+    for (const s of lines) bw = Math.max(bw, ctx.measureText(s).width);
+    bw += 20;
+    const bh = lines.length * lh + 10;
+    const bx = pad.l + 10, by = pad.t + 10;
+
+    ctx.fillStyle = 'rgba(253,246,227,.92)';
+    ctx.strokeStyle = '#c9bb96';
+    ctx.lineWidth = 1;
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.strokeRect(bx, by, bw, bh);
+    ctx.fillStyle = '#2b2117';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    lines.forEach((s, i) => ctx.fillText(s, bx + 10, by + 5 + lh * (i + 0.5)));
+
+    // --- 圖例 ---
+    if (hasMiss){
+      const lx = pad.l + pw - 110, ly = pad.t + ph - 16;
+      ctx.beginPath(); ctx.arc(lx, ly, 4.5, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(192,57,43,.75)'; ctx.fill();
+      ctx.fillStyle = '#2b2117'; ctx.textAlign = 'left';
+      ctx.fillText('命中', lx + 9, ly);
+      ctx.beginPath(); ctx.arc(lx + 58, ly, 4.5, 0, Math.PI * 2);
+      ctx.strokeStyle = '#7f8c8d'; ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.fillStyle = '#2b2117';
+      ctx.fillText('失誤', lx + 67, ly);
+    }
+
+    // --- 圖表下方的文字說明（可複製） ---
+    if (fit){
+      const sign = fit.b >= 0 ? '+' : '−';
+      let html =
+        '<b>Fitts\'s Law：</b>MT = a + b · log₂(A/W + 1)<br>' +
+        '<b>擬合結果：</b>MT = ' + fmt(fit.a, 1) + ' ' + sign + ' ' + fmt(Math.abs(fit.b), 1) + ' · ID<br>' +
+        '<b>R²：</b>' + fmt(fit.r2, 3) + '（n = ' + fit.n + '）';
+      if (fit.b > 0){
+        html += '<br><b>Throughput ≈ </b>' + fmt(1000 / fit.b, 2) + ' bits/s（= 1 / b）';
+      }
+      fitTextEl.innerHTML = html;
+    } else {
+      fitTextEl.textContent = '有效資料不足，無法計算迴歸。';
+    }
+  }
+
+  function savePNG(){
+    chartCanvas.toBlob(function(blob){
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'fitts_scatter.png';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    });
+  }
+
   // ===== 事件綁定 =====
   startBtn.addEventListener('click', startExperiment);
   resetBtn.addEventListener('click', () => {
     running = false;
     clearMole();
     resultsWrap.style.display = 'none';
+    chartWrap.style.display = 'none';          // 新增：重設時隱藏圖表
     downloadBtn.disabled = true;
     trialNumEl.textContent = '0';
     trialTotalEl.textContent = '0';
@@ -379,6 +656,13 @@
     document.getElementById('startBtn2').addEventListener('click', startExperiment);
   });
   downloadBtn.addEventListener('click', downloadCSV);
+
+  // 新增：圖表相關事件
+  onlyHitsEl.addEventListener('change', renderChart);
+  savePngBtn.addEventListener('click', savePNG);
+  window.addEventListener('resize', function(){
+    if (chartWrap.style.display === 'block') renderChart();
+  });
 
   stage.addEventListener('click', handleClick);
   stage.addEventListener('touchstart', function(e){ e.preventDefault(); handleClick(e); }, { passive:false });
