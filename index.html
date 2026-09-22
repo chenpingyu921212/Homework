@@ -69,13 +69,23 @@
   .overlay h2{margin:0; font-size:1.3rem}
   .overlay p{margin:0; font-size:.85rem; max-width:420px; line-height:1.6; color:#e7dcc6}
 
-  #storyBox{
+  .infoBox{
     position:absolute; inset:0; z-index:2; background:#fff; color:#2b2117;
     display:flex; flex-direction:column; align-items:center; justify-content:center;
     text-align:center; gap:14px; padding:20px;
   }
-  
-  #storyBox p{color:#2b2117}
+  .infoBox p{color:#2b2117}
+  .videoResponsive{
+    position:relative; width:100%; max-width:480px; padding-top:56.25%; /* 16:9 */
+    border-radius:8px; overflow:hidden;
+  }
+  .videoResponsive iframe{
+    position:absolute; inset:0; width:100%; height:100%; border:0;
+  }
+  .infoBox img{
+    max-width:100%; max-height:55vh; border-radius:8px;
+    box-shadow:0 2px 8px rgba(0,0,0,.25);
+  }
   button{
     font-family:inherit; font-size:.95rem; font-weight:700; padding:10px 22px;
     border-radius:999px; border:none; cursor:pointer; background:var(--accent);
@@ -124,7 +134,7 @@
 
 <div id="stage">
   <div id="overlay" class="overlay">
-  <div id="storyBox">
+  <div id="storyBox" class="infoBox">
       <h2> Scenario Description</h2>
       <p>
        As an online game designer, I want to estimate the range of difficulty level 
@@ -133,7 +143,24 @@
        in a reasonable range.
       </p>
       <button id="storyNextBtn">Next</button>
-    </div>  
+    </div>
+    <div id="videoBox" class="infoBox" style="display:none">
+      <h2>Fitt's Law Experiment Demo Vedio</h2>
+      <div class="videoResponsive">
+        <iframe
+          src="https://www.youtube.com/embed/4RWQTvgsu1I"
+          title="Fitt's Law Experiment Demo Video"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowfullscreen>
+        </iframe>
+      </div>
+      <button id="videoNextBtn">Next</button>
+    </div>
+    <div id="imageBox" class="infoBox" style="display:none">
+      <h2>My Result analysis</h2>
+      <img src="fitts_scatter.png" alt="Fitts's Law scatter plot with regression line and R²">
+      <button id="imageNextBtn">Next</button>
+    </div>
     <h2>Prepare to start the game</h2>
     <p>
       A mole will appear on screen for every trial, the length between old and new
@@ -659,6 +686,14 @@
   startBtn.addEventListener('click', startExperiment);
   document.getElementById('storyNextBtn').addEventListener('click', () => {
     document.getElementById('storyBox').style.display = 'none';
+    document.getElementById('videoBox').style.display = 'flex';
+  });
+  document.getElementById('videoNextBtn').addEventListener('click', () => {
+    document.getElementById('videoBox').style.display = 'none';
+    document.getElementById('imageBox').style.display = 'flex';
+  });
+  document.getElementById('imageNextBtn').addEventListener('click', () => {
+    document.getElementById('imageBox').style.display = 'none';
   });
   resetBtn.addEventListener('click', () => {
     running = false;
@@ -673,13 +708,27 @@
     lastMTEl.textContent = '–';
     overlay.style.display = 'flex';
     overlay.innerHTML =
-      '<div id="storyBox">' +
+      '<div id="storyBox" class="infoBox">' +
       '<h2>Scenario Description</h2>' +
       '<p>As an online game designer, I want to estimate the range of difficulty level ' +
       'which won\'t make the game too hard to play. In that case, I can develop an ' +
       'appropriate Wrack Mole game, which controls the distance and width of moles ' +
       'in a reasonable range.</p>' +
       '<button id="storyNextBtn">Next</button>' +
+      '</div>' +
+      '<div id="videoBox" class="infoBox" style="display:none">' +
+      '<h2>Fitt\'s Law Experiment Demo Vedio</h2>' +
+      '<div class="videoResponsive"><iframe ' +
+      'src="https://www.youtube.com/embed/4RWQTvgsu1I" ' +
+      'title="Fitt\'s Law Experiment Demo Video" ' +
+      'allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" ' +
+      'allowfullscreen></iframe></div>' +
+      '<button id="videoNextBtn">Next</button>' +
+      '</div>' +
+      '<div id="imageBox" class="infoBox" style="display:none">' +
+      '<h2>My Result analysis</h2>' +
+      '<img src="fitts_scatter.png" alt="Fitts\'s Law scatter plot with regression line and R²">' +
+      '<button id="imageNextBtn">Next</button>' +
       '</div>' +
       '<h2>Prepare to start the game</h2>' +
       '<p>A mole will appear on screen for every trial，the length between old and new position is devoted as <b>A</b>（distance），' +
@@ -689,6 +738,14 @@
     document.getElementById('startBtn2').addEventListener('click', startExperiment);
     document.getElementById('storyNextBtn').addEventListener('click', () => {
       document.getElementById('storyBox').style.display = 'none';
+      document.getElementById('videoBox').style.display = 'flex';
+    });
+    document.getElementById('videoNextBtn').addEventListener('click', () => {
+      document.getElementById('videoBox').style.display = 'none';
+      document.getElementById('imageBox').style.display = 'flex';
+    });
+    document.getElementById('imageNextBtn').addEventListener('click', () => {
+      document.getElementById('imageBox').style.display = 'none';
     });
   });
   downloadBtn.addEventListener('click', downloadCSV);
